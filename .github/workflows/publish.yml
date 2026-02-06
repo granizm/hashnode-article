@@ -1,0 +1,68 @@
+name: Publish to Hashnode
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'posts/**'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.HASHNODE_TOKEN }}" ]; then
+            echo "Error: HASHNODE_TOKEN secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.HASHNODE_PUBLICATION_ID }}" ]; then
+            echo "Error: HASHNODE_PUBLICATION_ID secret is not set"
+            exit 1
+          fi
+
+      - name: Publish articles
+        env:
+          HASHNODE_TOKEN: ${{ secrets.HASHNODE_TOKEN }}
+          HASHNODE_PUBLICATION_ID: ${{ secrets.HASHNODE_PUBLICATION_ID }}
+        run: |
+          for file in posts/*.md; do
+            if [ -f "$file" ] && [ "$file" != "posts/.gitkeep" ]; then
+              echo "Processing: $file"
+              ./scripts/publish.sh "$file"
+            fi
+          done
+
+      - name: Commit article IDs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add hashnode_article_ids.json
+          git diff --staged --quiet || git commit -m "chore: Update Hashnode article IDs"
+          git push
+
+      - name: Notify Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK" ]; then
+            curl -X POST "$DISCORD_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d "{\"content\": \"✅ Hashnodeに記事を同期しました\\nCommit: ${{ github.sha }}\"}"
+          fi
+
+      - name: Notify Discord (Failed)
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK" ]; then
+            curl -X POST "$DISCORD_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d "{\"content\": \"❌ Hashnode同期に失敗しました\\nWorkflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+          fi

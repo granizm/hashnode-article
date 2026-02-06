@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Hashnode Article Publisher
-# Usage: ./publish.sh <draft|publish> <markdown_file>
+# Usage: ./publish.sh <markdown_file>
+# Note: published status is read from frontmatter (published: true/false)
 
 set -e
 
-MODE="${1:-draft}"
-MARKDOWN_FILE="$2"
+MARKDOWN_FILE="$1"
 IDS_FILE="hashnode_article_ids.json"
 
 # Validate environment variables
@@ -22,7 +22,7 @@ fi
 
 if [[ -z "$MARKDOWN_FILE" ]]; then
     echo "Error: Markdown file path is required"
-    echo "Usage: $0 <draft|publish> <markdown_file>"
+    echo "Usage: $0 <markdown_file>"
     exit 1
 fi
 
@@ -59,6 +59,12 @@ TAGS=$(extract_frontmatter "$MARKDOWN_FILE" "tags")
 COVER_IMAGE=$(extract_frontmatter "$MARKDOWN_FILE" "cover_image")
 SLUG=$(extract_frontmatter "$MARKDOWN_FILE" "slug")
 CANONICAL_URL=$(extract_frontmatter "$MARKDOWN_FILE" "canonical_url")
+PUBLISHED=$(extract_frontmatter "$MARKDOWN_FILE" "published")
+
+# Default to draft (false) if not specified
+if [[ "$PUBLISHED" != "true" ]]; then
+    PUBLISHED="false"
+fi
 
 # Get article content
 CONTENT=$(get_content "$MARKDOWN_FILE")
@@ -97,38 +103,6 @@ TAGS_JSON=$(build_tags_array "$TAGS")
 # GraphQL API endpoint
 API_URL="https://gql.hashnode.com"
 
-# Function to send Discord notification
-send_discord_notification() {
-    local status="$1"
-    local message="$2"
-
-    if [[ -z "$DISCORD_WEBHOOK_URL" ]]; then
-        echo "Discord webhook URL not set, skipping notification"
-        return 0
-    fi
-
-    local color
-    if [[ "$status" == "success" ]]; then
-        color=3066993  # Green
-    else
-        color=15158332  # Red
-    fi
-
-    local payload=$(cat <<EOF
-{
-    "embeds": [{
-        "title": "Hashnode Article ${status^}",
-        "description": "$message",
-        "color": $color,
-        "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    }]
-}
-EOF
-)
-
-    curl -s -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL" > /dev/null
-}
-
 # Create Draft
 create_draft() {
     echo "Creating draft for: $TITLE"
@@ -145,18 +119,6 @@ mutation CreateDraft($input: CreateDraftInput!) {
     }
 }
 EOF
-
-    # Build coverImageOptions only if COVER_IMAGE is set
-    local cover_image_options=""
-    if [[ -n "$COVER_IMAGE" ]]; then
-        cover_image_options="\"coverImageOptions\": {\"coverImageURL\": \"$COVER_IMAGE\"},"
-    fi
-
-    # Build slug option only if SLUG is set
-    local slug_option=""
-    if [[ -n "$SLUG" ]]; then
-        slug_option="\"slug\": \"$SLUG\","
-    fi
 
     local variables=$(cat <<EOF
 {
@@ -192,16 +154,12 @@ EOF
 
     if [[ -n "$new_draft_id" ]]; then
         echo "Draft created with ID: $new_draft_id"
-
         # Save draft ID
         jq ".\"${ARTICLE_KEY}\".draftId = \"$new_draft_id\"" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
-
-        send_discord_notification "success" "Draft created: $TITLE (ID: $new_draft_id)"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
         echo "Error creating draft: $error"
-        send_discord_notification "failure" "Failed to create draft: $TITLE - $error"
         return 1
     fi
 }
@@ -258,12 +216,10 @@ EOF
 
     if [[ -n "$updated_id" ]]; then
         echo "Draft updated: $updated_id"
-        send_discord_notification "success" "Draft updated: $TITLE"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
         echo "Error updating draft: $error"
-        send_discord_notification "failure" "Failed to update draft: $TITLE - $error"
         return 1
     fi
 }
@@ -312,13 +268,10 @@ EOF
 
         # Save post ID and remove draft ID
         jq ".\"${ARTICLE_KEY}\".postId = \"$new_post_id\" | del(.\"${ARTICLE_KEY}\".draftId)" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
-
-        send_discord_notification "success" "Article published: $TITLE\nURL: $post_url"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
         echo "Error publishing draft: $error"
-        send_discord_notification "failure" "Failed to publish: $TITLE - $error"
         return 1
     fi
 }
@@ -378,49 +331,45 @@ EOF
     if [[ -n "$updated_id" ]]; then
         echo "Post updated: $updated_id"
         echo "URL: $post_url"
-        send_discord_notification "success" "Article updated: $TITLE\nURL: $post_url"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
         echo "Error updating post: $error"
-        send_discord_notification "failure" "Failed to update: $TITLE - $error"
         return 1
     fi
 }
 
-# Main logic
-case "$MODE" in
-    draft)
+# Main logic based on frontmatter published status
+echo "Processing: $MARKDOWN_FILE"
+echo "Published status: $PUBLISHED"
+
+if [[ "$PUBLISHED" == "true" ]]; then
+    # Should be published
+    if [[ -n "$POST_ID" ]]; then
+        # Post already exists, update it
+        update_post "$POST_ID"
+    elif [[ -n "$DRAFT_ID" ]]; then
+        # Draft exists, publish it
+        publish_draft "$DRAFT_ID"
+    else
+        # No draft or post exists, create draft first then publish
+        create_draft
+        # Re-read the draft ID
+        DRAFT_ID=$(jq -r ".\"${ARTICLE_KEY}\".draftId // empty" "$IDS_FILE")
         if [[ -n "$DRAFT_ID" ]]; then
-            update_draft "$DRAFT_ID"
-        else
-            create_draft
-        fi
-        ;;
-    publish)
-        if [[ -n "$POST_ID" ]]; then
-            # Post already exists, update it
-            update_post "$POST_ID"
-        elif [[ -n "$DRAFT_ID" ]]; then
-            # Draft exists, publish it
             publish_draft "$DRAFT_ID"
         else
-            # No draft or post exists, create draft first then publish
-            create_draft
-            # Re-read the draft ID
-            DRAFT_ID=$(jq -r ".\"${ARTICLE_KEY}\".draftId // empty" "$IDS_FILE")
-            if [[ -n "$DRAFT_ID" ]]; then
-                publish_draft "$DRAFT_ID"
-            else
-                echo "Error: Failed to create draft before publishing"
-                send_discord_notification "failure" "Failed to publish: Could not create draft first"
-                exit 1
-            fi
+            echo "Error: Failed to create draft before publishing"
+            exit 1
         fi
-        ;;
-    *)
-        echo "Error: Invalid mode. Use 'draft' or 'publish'"
-        echo "Usage: $0 <draft|publish> <markdown_file>"
-        exit 1
-        ;;
-esac
+    fi
+else
+    # Should be draft (published: false or not specified)
+    if [[ -n "$DRAFT_ID" ]]; then
+        update_draft "$DRAFT_ID"
+    else
+        create_draft
+    fi
+fi
+
+echo "Done!"
