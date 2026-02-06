@@ -146,22 +146,40 @@ mutation CreateDraft($input: CreateDraftInput!) {
 }
 EOF
 
+    # Build coverImageOptions only if COVER_IMAGE is set
+    local cover_image_options=""
+    if [[ -n "$COVER_IMAGE" ]]; then
+        cover_image_options="\"coverImageOptions\": {\"coverImageURL\": \"$COVER_IMAGE\"},"
+    fi
+
+    # Build slug option only if SLUG is set
+    local slug_option=""
+    if [[ -n "$SLUG" ]]; then
+        slug_option="\"slug\": \"$SLUG\","
+    fi
+
     local variables=$(cat <<EOF
 {
     "input": {
         "publicationId": "$HASHNODE_PUBLICATION_ID",
         "title": $ESCAPED_TITLE,
-        "subtitle": $ESCAPED_SUBTITLE,
         "contentMarkdown": $ESCAPED_CONTENT,
-        "tags": $TAGS_JSON,
-        "coverImageOptions": {
-            "coverImageURL": "$COVER_IMAGE"
-        },
-        "slug": "$SLUG"
+        "tags": $TAGS_JSON
     }
 }
 EOF
 )
+
+    # Add optional fields using jq
+    if [[ -n "$SUBTITLE" ]]; then
+        variables=$(echo "$variables" | jq --argjson subtitle "$ESCAPED_SUBTITLE" '.input.subtitle = $subtitle')
+    fi
+    if [[ -n "$COVER_IMAGE" ]]; then
+        variables=$(echo "$variables" | jq --arg url "$COVER_IMAGE" '.input.coverImageOptions = {coverImageURL: $url}')
+    fi
+    if [[ -n "$SLUG" ]]; then
+        variables=$(echo "$variables" | jq --arg slug "$SLUG" '.input.slug = $slug')
+    fi
 
     local response=$(curl -s -X POST "$API_URL" \
         -H "Content-Type: application/json" \
@@ -211,17 +229,23 @@ EOF
     "input": {
         "id": "$draft_id",
         "title": $ESCAPED_TITLE,
-        "subtitle": $ESCAPED_SUBTITLE,
         "contentMarkdown": $ESCAPED_CONTENT,
-        "tags": $TAGS_JSON,
-        "coverImageOptions": {
-            "coverImageURL": "$COVER_IMAGE"
-        },
-        "slug": "$SLUG"
+        "tags": $TAGS_JSON
     }
 }
 EOF
 )
+
+    # Add optional fields using jq
+    if [[ -n "$SUBTITLE" ]]; then
+        variables=$(echo "$variables" | jq --argjson subtitle "$ESCAPED_SUBTITLE" '.input.subtitle = $subtitle')
+    fi
+    if [[ -n "$COVER_IMAGE" ]]; then
+        variables=$(echo "$variables" | jq --arg url "$COVER_IMAGE" '.input.coverImageOptions = {coverImageURL: $url}')
+    fi
+    if [[ -n "$SLUG" ]]; then
+        variables=$(echo "$variables" | jq --arg slug "$SLUG" '.input.slug = $slug')
+    fi
 
     local response=$(curl -s -X POST "$API_URL" \
         -H "Content-Type: application/json" \
@@ -323,17 +347,23 @@ EOF
     "input": {
         "id": "$post_id",
         "title": $ESCAPED_TITLE,
-        "subtitle": $ESCAPED_SUBTITLE,
         "contentMarkdown": $ESCAPED_CONTENT,
-        "tags": $TAGS_JSON,
-        "coverImageOptions": {
-            "coverImageURL": "$COVER_IMAGE"
-        },
-        "slug": "$SLUG"
+        "tags": $TAGS_JSON
     }
 }
 EOF
 )
+
+    # Add optional fields using jq
+    if [[ -n "$SUBTITLE" ]]; then
+        variables=$(echo "$variables" | jq --argjson subtitle "$ESCAPED_SUBTITLE" '.input.subtitle = $subtitle')
+    fi
+    if [[ -n "$COVER_IMAGE" ]]; then
+        variables=$(echo "$variables" | jq --arg url "$COVER_IMAGE" '.input.coverImageOptions = {coverImageURL: $url}')
+    fi
+    if [[ -n "$SLUG" ]]; then
+        variables=$(echo "$variables" | jq --arg slug "$SLUG" '.input.slug = $slug')
+    fi
 
     local response=$(curl -s -X POST "$API_URL" \
         -H "Content-Type: application/json" \
