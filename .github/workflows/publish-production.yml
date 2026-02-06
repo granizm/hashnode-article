@@ -1,0 +1,87 @@
+name: Publish to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'posts/**/*.md'
+
+jobs:
+  publish-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            posts/**/*.md
+
+      - name: Download article IDs from previous runs
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: publish-draft.yml
+          name: hashnode-article-ids
+          path: .
+          if_no_artifact_found: ignore
+
+      - name: Initialize article IDs file
+        run: |
+          if [ ! -f hashnode_article_ids.json ]; then
+            echo "{}" > hashnode_article_ids.json
+          fi
+          cat hashnode_article_ids.json
+
+      - name: Publish articles
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          HASHNODE_TOKEN: ${{ secrets.HASHNODE_TOKEN }}
+          HASHNODE_PUBLICATION_ID: ${{ secrets.HASHNODE_PUBLICATION_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # Process each changed markdown file
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            echo "Publishing: $file"
+            ./scripts/publish.sh publish "$file"
+          done
+
+      - name: Upload updated article IDs
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashnode-article-ids
+          path: hashnode_article_ids.json
+          overwrite: true
+
+      - name: Notify Discord on success
+        if: success() && steps.changed-files.outputs.any_changed == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            curl -s -H "Content-Type: application/json" \
+              -d "{\"embeds\": [{\"title\": \"Hashnode Articles Published\", \"description\": \"Successfully published articles from commit ${{ github.sha }}\", \"color\": 3066993, \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]}" \
+              "$DISCORD_WEBHOOK_URL"
+          fi
+
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            curl -s -H "Content-Type: application/json" \
+              -d "{\"embeds\": [{\"title\": \"Hashnode Publication Failed\", \"description\": \"Failed to publish articles from commit ${{ github.sha }}\", \"color\": 15158332, \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]}" \
+              "$DISCORD_WEBHOOK_URL"
+          fi
