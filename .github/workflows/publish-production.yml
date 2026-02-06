@@ -21,6 +21,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
+      - name: Validate secrets
+        env:
+          HASHNODE_TOKEN: ${{ secrets.HASHNODE_TOKEN }}
+          HASHNODE_PUBLICATION_ID: ${{ secrets.HASHNODE_PUBLICATION_ID }}
+        run: |
+          if [ -z "$HASHNODE_TOKEN" ]; then
+            echo "::error::HASHNODE_TOKEN secret is not set. Please add it to repository secrets."
+            exit 1
+          fi
+          if [ -z "$HASHNODE_PUBLICATION_ID" ]; then
+            echo "::error::HASHNODE_PUBLICATION_ID secret is not set. Please add it to repository secrets."
+            exit 1
+          fi
+          echo "All required secrets are configured."
+
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v44
