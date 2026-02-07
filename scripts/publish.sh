@@ -4,7 +4,9 @@
 # Usage: ./publish.sh <markdown_file>
 # Note: published status is read from frontmatter (published: true/false)
 
-set -e
+set +e
+
+echo "=== Hashnode Publisher Starting ==="
 
 MARKDOWN_FILE="$1"
 IDS_FILE="hashnode_article_ids.json"
@@ -41,8 +43,15 @@ extract_frontmatter() {
     local file="$1"
     local key="$2"
 
-    # Extract value between --- markers
-    sed -n '/^---$/,/^---$/p' "$file" | grep "^${key}:" | sed "s/^${key}:[[:space:]]*//" | sed 's/^["'"'"']//' | sed 's/["'"'"']$//'
+    # Extract value between --- markers (return empty on no match)
+    local value
+    value=$(sed -n '/^---$/,/^---$/p' "$file" 2>/dev/null | grep "^${key}:" 2>/dev/null | sed "s/^${key}:[[:space:]]*//" | sed 's/^["'"'"']//' | sed 's/["'"'"']$//' || true)
+    # Return empty string if value is "null"
+    if [[ "$value" == "null" ]]; then
+        echo ""
+    else
+        echo "$value"
+    fi
 }
 
 # Get content after frontmatter

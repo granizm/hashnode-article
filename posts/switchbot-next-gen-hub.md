@@ -2,11 +2,7 @@
 title: "SwitchBot's Next-Gen AI Smart Home Hub: A Developer's Guide to What's Coming"
 subtitle: "Breaking down the announcement and exploring the possibilities for home automation developers"
 slug: switchbot-next-gen-ai-smart-home-hub
-tags:
-  - iot
-  - smart-home
-  - artificial-intelligence
-  - home-automation
+tags: iot, smart-home, artificial-intelligence, home-automation
 published: false
 ---
 
