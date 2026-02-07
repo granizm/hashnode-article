@@ -5,6 +5,41 @@
 - **Platform**: Hashnode
 - **Language**: en (English)
 - **Primary Audience**: Global developers, tech bloggers, and learners
+- **Focus**: 個人ブランディング重視、SEO重視、プロフェッショナル
+
+## Target Audience Characteristics
+
+Hashnode users are **personal branding-focused developers** building their professional presence.
+
+### User Demographics
+
+- Developers building personal technical blogs
+- Full-stack and DevOps engineers are common
+- SEO-conscious content creators
+- Professional, career-focused audience
+
+### Content Guidelines
+
+1. **Titles**: Professional, SEO-friendly titles that clearly state the topic
+2. **Quality**: Comprehensive, well-researched content is expected
+3. **Structure**: Clear prerequisites, step-by-step guides, complete examples
+4. **Depth**: Technical deep-dives and architectural discussions perform well
+
+### Comparison with DEV.to
+
+| Aspect | Hashnode | DEV.to |
+|--------|----------|--------|
+| Audience | Personal branding, professional | Community-focused, beginners welcome |
+| Style | Professional, SEO-focused | Casual, conversational |
+| Content | Tutorials, technical deep-dives | How-tos, experiences, discussions |
+| Discovery | SEO, custom domains | Tag-based, community feed |
+
+### Unique Features
+
+- Custom domain support (build your own brand)
+- Built-in newsletter functionality
+- Strong SEO optimization
+- GitHub backup integration
 
 ## Writing Guidelines
 
