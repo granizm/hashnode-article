@@ -163,8 +163,11 @@ EOF
 
     if [[ -n "$new_draft_id" ]]; then
         echo "Draft created with ID: $new_draft_id"
-        # Save draft ID
-        jq ".\"${ARTICLE_KEY}\".draftId = \"$new_draft_id\"" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
+        # Build draft URL (Hashnode draft URL format)
+        local draft_url="https://hashnode.com/draft/${new_draft_id}"
+        echo "Draft URL: $draft_url"
+        # Save draft ID and URL
+        jq ".\"${ARTICLE_KEY}\" = {draftId: \"$new_draft_id\", draftUrl: \"$draft_url\"}" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
@@ -225,6 +228,10 @@ EOF
 
     if [[ -n "$updated_id" ]]; then
         echo "Draft updated: $updated_id"
+        # Update draft URL in IDs file
+        local draft_url="https://hashnode.com/draft/${updated_id}"
+        echo "Draft URL: $draft_url"
+        jq ".\"${ARTICLE_KEY}\".draftUrl = \"$draft_url\"" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
@@ -275,8 +282,8 @@ EOF
         echo "Post published with ID: $new_post_id"
         echo "URL: $post_url"
 
-        # Save post ID and remove draft ID
-        jq ".\"${ARTICLE_KEY}\".postId = \"$new_post_id\" | del(.\"${ARTICLE_KEY}\".draftId)" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
+        # Save post ID and URL, remove draft fields
+        jq ".\"${ARTICLE_KEY}\" = {postId: \"$new_post_id\", postUrl: \"$post_url\"}" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
@@ -340,6 +347,8 @@ EOF
     if [[ -n "$updated_id" ]]; then
         echo "Post updated: $updated_id"
         echo "URL: $post_url"
+        # Update post URL in IDs file
+        jq ".\"${ARTICLE_KEY}\".postUrl = \"$post_url\"" "$IDS_FILE" > "${IDS_FILE}.tmp" && mv "${IDS_FILE}.tmp" "$IDS_FILE"
         return 0
     else
         local error=$(echo "$response" | jq -r '.errors[0].message // "Unknown error"')
